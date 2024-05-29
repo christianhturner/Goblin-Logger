@@ -1,6 +1,7 @@
 package loggerCmd
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 )
@@ -13,14 +14,23 @@ type LoggerOpts struct {
 // LoggerCmd represents and individual logging script/job in which collections of
 // are represented as groves.
 type LoggerCmd struct {
-	Cmd            exec.Cmd
+	Cmd            *exec.Cmd
 	pollFreq       uint32
 	schedule       uint16
 	enablePolling  bool
 	enableSchedule bool
 }
 
-func implement(cmd exec.Cmd, opts ...Option) (*LoggerCmd, error) {
+func (c *LoggerCmd) Run() (string, string, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	c.Cmd.Stdout = &stdout
+	c.Cmd.Stderr = &stderr
+	err := c.Cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func implement(cmd *exec.Cmd, opts ...Option) (*LoggerCmd, error) {
 	loggerCmd := &LoggerCmd{Cmd: cmd, enablePolling: false, enableSchedule: false, pollFreq: 0, schedule: 0}
 	for _, opt := range opts {
 		opt(loggerCmd)
@@ -30,7 +40,7 @@ func implement(cmd exec.Cmd, opts ...Option) (*LoggerCmd, error) {
 
 func New(cmd exec.Cmd, opts *LoggerOpts) (*LoggerCmd, error) {
 	if (&opts.PollFreq) == nil && (&opts.Schedule) == nil {
-		loggercmd, err := implement(cmd)
+		loggercmd, err := implement(&cmd)
 		if err != nil {
 			fmt.Errorf("Error creating LoggingCmd: %v", err)
 			return loggercmd, err
@@ -39,7 +49,7 @@ func New(cmd exec.Cmd, opts *LoggerOpts) (*LoggerCmd, error) {
 	}
 
 	if (&opts.PollFreq) != nil && (&opts.Schedule) == nil {
-		loggerCmd, err := implement(cmd,
+		loggerCmd, err := implement(&cmd,
 			WithPollFreq(opts.PollFreq))
 		if err != nil {
 			fmt.Errorf("Error creating LoggingCmd: %v", err)
@@ -49,7 +59,7 @@ func New(cmd exec.Cmd, opts *LoggerOpts) (*LoggerCmd, error) {
 	}
 	if (&opts.Schedule) != nil && (&opts.PollFreq) == nil {
 		loggerCmd, err := implement(
-			cmd,
+			&cmd,
 			WithSchedule(opts.Schedule),
 		)
 		if err != nil {
@@ -59,7 +69,7 @@ func New(cmd exec.Cmd, opts *LoggerOpts) (*LoggerCmd, error) {
 		return loggerCmd, nil
 	}
 	loggerCmd, err := implement(
-		cmd,
+		&cmd,
 		WithPollFreq(opts.PollFreq),
 		WithSchedule(opts.Schedule))
 	if err != nil {
